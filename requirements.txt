@@ -1,10 +1,5 @@
-
 streamlit
-geopandas
 shapely
 python-docx
 pandas
-fiona
-pyproj
-rtree
 google-generativeai

@@ -1,96 +1,51 @@
-
 import streamlit as st
-from database.db import init_db
-from services.geo_service import verificar_camadas
-from services.legal_engine import avaliar_infracao
-from services.report_engine import gerar_relatorio
-from services.ai_engine import listar_modelos, gerar_analise_ai
+import json
+from pathlib import Path
+import openai
+from io import BytesIO
+from pdfminer.high_level import extract_text
 
-init_db()
+st.set_page_config(page_title="Análise Jurídica AI", layout="centered")
 
-st.set_page_config(page_title="Sistema Nacional de Fiscalização Ambiental", layout="wide")
+st.title("Análise Jurídica Fundamentada")
+st.write("Faça upload de um documento legal (TXT ou PDF) e gere uma análise jurídica fundamentada usando IA.")
 
-st.title("🛡️ Sistema Nacional de Fiscalização Ambiental")
+# Inserir a chave API da OpenAI dinamicamente
+openai_api_key = st.text_input("Chave API OpenAI", type="password")
 
-# ---------------------------
-# CONFIGURAÇÃO IA
-# ---------------------------
+# Upload do arquivo
+uploaded_file = st.file_uploader("Upload de Documento (TXT ou PDF)", type=["txt", "pdf"])
 
-st.sidebar.header("Configuração de IA")
+file_text = ''
+if uploaded_file:
+    if uploaded_file.type == "application/pdf":
+        try:
+            file_bytes = BytesIO(uploaded_file.read())
+            file_text = extract_text(file_bytes)
+        except Exception as e:
+            st.error(f"Erro ao extrair texto do PDF: {str(e)}")
+    elif uploaded_file.type == "text/plain":
+        file_text = uploaded_file.read().decode("utf-8")
+    else:
+        st.error("Formato de arquivo não suportado.")
 
-api_key = st.sidebar.text_input("API Key (Google AI / Gemini)", type="password")
+if file_text:
+    st.subheader("Conteúdo do Documento")
+    st.text_area("", file_text, height=200)
 
-modelos = []
-modelo_escolhido = None
-
-if api_key:
-    try:
-        modelos = listar_modelos(api_key)
-        if modelos:
-            modelo_escolhido = st.sidebar.selectbox("Modelo IA", modelos)
-        else:
-            st.sidebar.warning("Nenhum modelo encontrado.")
-    except Exception as e:
-        st.sidebar.error(f"Erro ao listar modelos: {e}")
-
-# ---------------------------
-# FORMULÁRIO
-# ---------------------------
-
-st.subheader("Identificação da Ocorrência")
-
-local = st.text_input("Local da ocorrência")
-lat = st.number_input("Latitude", format="%.6f")
-lon = st.number_input("Longitude", format="%.6f")
-
-infrator = st.text_input("Nome do infrator")
-descricao = st.text_area("Descrição dos factos observados")
-
-# ---------------------------
-# ANÁLISE
-# ---------------------------
-
-if st.button("🔎 Analisar Localização"):
-
-    camadas = verificar_camadas(lat, lon)
-    regimes = avaliar_infracao(camadas)
-
-    st.subheader("Resultado da análise geográfica")
-    st.json(camadas)
-
-    st.subheader("Regimes jurídicos potencialmente aplicáveis")
-    st.json(regimes)
-
-    dados = {
-        "local": local,
-        "lat": lat,
-        "lon": lon,
-        "descricao": descricao,
-        "regimes": regimes
-    }
-
-    doc = gerar_relatorio(dados)
-
-    st.download_button(
-        "📥 Descarregar Relatório Técnico",
-        doc,
-        file_name="auto_fiscalizacao_ambiental.docx"
-    )
-
-    # ---------------------------
-    # ANÁLISE IA
-    # ---------------------------
-
-    if api_key and modelo_escolhido:
-
-        st.subheader("Análise jurídica assistida por IA")
-
-        resposta = gerar_analise_ai(
-            api_key,
-            modelo_escolhido,
-            local,
-            descricao,
-            regimes
-        )
-
-        st.write(resposta)
+    if openai_api_key and st.button("Gerar Análise Jurídica"):
+        with st.spinner('Gerando análise jurídica...'):
+            prompt = f"Você é um assistente jurídico especializado. Analise o seguinte documento legal e gere uma análise jurídica fundamentada:\n\n1. Resuma o conteúdo principal, destacando obrigações, direitos e cláusulas críticas.\n2. Identifique referências explícitas à legislação (leis, decretos, regulamentos, códigos).\n3. Explique como cada referência legal se aplica ao contexto do documento.\n4. Destaque possíveis lacunas ou riscos jurídicos.\n5. Apresente a análise de forma clara, em tópicos, citando artigos ou normas relevantes.\n6. Sempre que possível, inclua links ou referências oficiais às normas.\n7. Não gere parecer jurídico definitivo, apenas análise interpretativa baseada na legislação.\n\nDocumento:\n{file_text}"
+            try:
+                openai.api_key = openai_api_key
+                response = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    max_tokens=2000
+                )
+                analysis = response.choices[0].message.content
+                st.subheader("Análise Jurídica Fundamentada")
+                st.text_area("", analysis, height=400)
+            except Exception as e:
+                st.error(f"Erro ao gerar análise: {str(e)}")

@@ -1,8 +1,7 @@
 import streamlit as st
 import json
-from pathlib import Path
-import openai
 from io import BytesIO
+import openai
 from pdfminer.high_level import extract_text
 
 st.set_page_config(page_title="Análise Jurídica AI", layout="centered")
@@ -38,7 +37,8 @@ if file_text:
             prompt = f"Você é um assistente jurídico especializado. Analise o seguinte documento legal e gere uma análise jurídica fundamentada:\n\n1. Resuma o conteúdo principal, destacando obrigações, direitos e cláusulas críticas.\n2. Identifique referências explícitas à legislação (leis, decretos, regulamentos, códigos).\n3. Explique como cada referência legal se aplica ao contexto do documento.\n4. Destaque possíveis lacunas ou riscos jurídicos.\n5. Apresente a análise de forma clara, em tópicos, citando artigos ou normas relevantes.\n6. Sempre que possível, inclua links ou referências oficiais às normas.\n7. Não gere parecer jurídico definitivo, apenas análise interpretativa baseada na legislação.\n\nDocumento:\n{file_text}"
             try:
                 openai.api_key = openai_api_key
-                response = openai.ChatCompletion.create(
+                # Usando a interface v1.0.0+ da OpenAI
+                response = openai.chat.completions.create(
                     model="gpt-4",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2,
